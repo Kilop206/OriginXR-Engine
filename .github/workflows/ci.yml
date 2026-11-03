@@ -1,0 +1,15 @@
+name: OriginXR headless core CI
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure without graphics
+        run: cmake -S . -B build -DORIGINXR_BUILD_GRAPHICS=OFF -DORIGINXR_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

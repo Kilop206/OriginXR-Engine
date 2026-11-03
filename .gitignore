@@ -1,0 +1,14 @@
+build/
+build-*/
+CMakeFiles/
+CMakeCache.txt
+.vscode/
+.idea/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+originxr_test_scene.oxscene
