@@ -1,153 +1,148 @@
-# OriginXR Engine v0.1 (C++17)
+# OriginXR Engine v0.2.0 — Milestone 2
 
-**Uma engine gráfica 3D educacional, criada em C++ do zero e sem Unity, Unreal ou Godot.**
-Possui um núcleo independente da GPU, cenas editáveis em arquivo, entidades/componentes, renderização OpenGL 3.3, entrada, câmera FPS e modo estereoscópico **de pré-visualização**.
+**Engine 3D educacional em C++17, sem Unity, Unreal ou Godot.** O Milestone 2 evolui o renderizador fixo da v0.1 para **malhas importadas, materiais, texturas, cache e instancing**, com APIs independentes do backend gráfico e primitivas matemáticas preparadas para OpenXR.
 
-> **Estado real:** a versão 0.1 ainda NÃO é RA nem RV imersiva. O modo estéreo é lado a lado numa janela de desktop; não lê sensores de headset, não usa OpenXR e não mostra câmeras reais para RA. Isso é uma *base de engine*, não uma engine XR pronta para dispositivos. O passo seguinte é implementar um backend OpenXR completo e, depois, uma pipeline RA.
+> **Estado:** este projeto não implementa uma sessão OpenXR, não rastreia headsets e ainda não produz RA/RV imersiva. A opção `--stereo` é apenas pré-visualização lado a lado numa janela. O XR real precisa de OpenXR loader, runtime, swapchains, composição e dispositivos compatíveis; ver `docs/roadmap.md`.
+>
+> **Validação:** o núcleo compilou com GCC 14/C++17 e passou no CTest; o código gráfico passou por checagem sintática com Clang usando interfaces GLFW/OpenGL simuladas. A execução gráfica real precisa ser validada em uma máquina com driver OpenGL 3.3 e GLFW.
 
-## Recursos implementados
+## O que mudou desde a v0.1
 
-- `originxr_core`: matemáticas 3D, câmera, entidades, transformações, componente de malha (cubo), componente de rotação e cenas versionadas `.oxscene`.
-- `originxr_graphics`: janela GLFW, contexto OpenGL **3.3 Core**, shaders GLSL, VAO/VBO, profundidade, grade espacial e projeções mono/estéreo.
-- `originxr_sandbox`: ambiente de demonstração com cena pré-criada, movimentação livre, objetos animados e criação de cubos em execução.
-- `originxr_tests`: testes do núcleo sem OpenGL e sem GLFW; executados via CTest.
-- Integração no GitHub Actions para compilação e testes headless.
+| Recurso | v0.1 | v0.2 |
+|---|---|---|
+| Geometria | Cubo fixo | `MeshData`, cubo/plano e importador OBJ (triangulação) |
+| Texturas | Nenhuma | Texturas PPM P3/P6, shader UV e RGB |
+| Materiais | Cor no MeshComponent | `MaterialComponent` com tint, textura e unlit |
+| Recursos | VBO de cubo | `AssetManager` com cache CPU + upload/cache GPU |
+| Desenho | Cada entidade = um draw | Batching por malha/material e `glDrawElementsInstanced` |
+| Perfis | Contagem FPS | Draw calls, triângulos, instâncias e tempo CPU por frame |
+| Câmera | Desktop mono e estéreo | `RenderView` aceita projeções/visões externas |
+| Entrada | GLFW acoplado à movimentação | `InputState` e `moveFreeCamera` independentes do GLFW |
+| Cenas | `.oxscene` v1 | v2 com malha/material e leitura retrocompatível v1 |
+| XR | Simulação estéreo | Matemática de pose/FOV XR, **sem runtime XR** |
 
-A engine é dividida em duas bibliotecas (`OriginXR::Core` e `OriginXR::Graphics`) para permitir reutilização sem depender de janela ou runtime gráfico no núcleo.
+O projeto continua intencionalmente pequeno e didático. **Não suporta glTF 2.0, PNG/JPEG, animação esquelética, editor visual nem backends Vulkan/Metal.** Essas funcionalidades estão listadas como futuros incrementos; não são anunciadas como implementadas.
 
 ## Estrutura
 
 ```text
-originxr-engine/
+originxr-engine-v0.2/
 ├── CMakeLists.txt
 ├── include/originxr/
-│   ├── Math.hpp             # Vec3, Mat4, projeções
-│   ├── Camera.hpp           # câmera, visão estereoscópica
-│   ├── Scene.hpp            # Entity, Transform, Mesh, Spin, Scene
-│   ├── SceneIO.hpp          # leitura/escrita .oxscene
-│   ├── Renderer.hpp         # API do renderizador OpenGL
-│   └── Engine.hpp           # loop de aplicação e callbacks
-├── src/                     # implementação dos módulos
-├── apps/sandbox.cpp         # aplicação de exemplo
-├── assets/scenes/demo.oxscene
-├── tests/test_core.cpp
+│   ├── Assets.hpp       AssetManager, MeshData, ImageData
+│   ├── Input.hpp        estados de entrada independentes do dispositivo
+│   ├── RenderView.hpp   vistas externas, métricas de renderização
+│   ├── XRMath.hpp       pose, FOV e matrizes em coordenadas XR
+│   ├── Camera.hpp, Math.hpp, Scene.hpp, SceneIO.hpp
+│   └── Engine.hpp, Renderer.hpp
+├── src/                 implementação C++
+├── assets/
+│   ├── meshes/pyramid.obj
+│   ├── textures/checker.ppm
+│   └── scenes/demo.oxscene, legacy-v1.oxscene
+├── apps/sandbox.cpp
+├── tests/                testes core + assets + XR math + input
 ├── docs/roadmap.md
 └── .github/workflows/ci.yml
 ```
 
-## Compilar no Windows com MinGW-w64
+## Começando no Windows / MinGW-w64
 
-**Pré-requisitos:** CMake 3.20+, Git, MinGW-w64/G++ com C++17, Ninja ou mingw32-make, driver com suporte a OpenGL 3.3. É necessário acesso à internet para baixar GLFW 3.4 na primeira configuração **se GLFW não estiver instalado**.
+Pré-requisitos: CMake 3.20+, Ninja, Git, GCC/MinGW-w64 (C++17), driver com **OpenGL 3.3 Core**. Se não houver GLFW instalado, o CMake tentará obtê-lo da tag `3.4` do repositório oficial (requer acesso à internet).
 
-No terminal PowerShell, dentro da pasta extraída:
+Abra o PowerShell na pasta extraída e execute:
 
 ```powershell
-cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=C:/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=C:/mingw64/bin/g++.exe
+cmake -S . -B build -G Ninja `
+  -DCMAKE_C_COMPILER=C:/mingw64/bin/gcc.exe `
+  -DCMAKE_CXX_COMPILER=C:/mingw64/bin/g++.exe
 cmake --build build --parallel
 .\build\originxr_sandbox.exe
 ```
 
-Ajuste os caminhos de compilador. Se Ninja não estiver instalado, use o gerador alternativo **em um diretório diferente**:
-
-```powershell
-cmake -S . -B build-mingw -G "MinGW Makefiles" -DCMAKE_C_COMPILER=C:/mingw64/bin/gcc.exe -DCMAKE_CXX_COMPILER=C:/mingw64/bin/g++.exe
-cmake --build build-mingw --parallel
-.\build-mingw\originxr_sandbox.exe
-```
-
-Se ocorrer erro de link indicando funções de entrada do MinGW, confira se está usando um único toolchain MinGW-w64 consistentemente (GCC, `mingw32-make`, `ninja`, GLFW compilado por ele). Não misture as bibliotecas compiladas para MSVC.
-
-Se quiser iniciar no modo estéreo:
+Ajuste o caminho do MinGW conforme sua instalação. Para testar o modo estéreo (pré-visualização, não headset):
 
 ```powershell
 .\build\originxr_sandbox.exe --stereo
 ```
 
-O CMake copia a cena padrão para `build/scenes/demo.oxscene`. **F6 salva nessa cópia**, preservando o arquivo original em `assets/scenes`.
+Na primeira execução a cena contém **16 cubos com o mesmo material**, renderizados em um batch instanciado, mais um modelo OBJ piramidal, uma plataforma com textura quadriculada e um satélite animado. Os recursos são copiados para `build/scenes`, `build/meshes` e `build/textures` na compilação.
 
-## Compilação sem gráficos + testes
+### Controles
 
-Útil em CI ou em máquinas sem GLFW, OpenGL ou interface gráfica:
+| Entrada | Comportamento |
+|---|---|
+| WASD / Mouse | Movimento / olhar |
+| Q / E / Shift | Descer / subir / acelerar |
+| F1 / F2 | Prévia estéreo / wireframe |
+| F5 / F6 | Recarregar / salvar cena |
+| F7 / F8 | Criar cubo / apagar última entidade |
+| P / R | Pausar animação / redefinir câmera |
+| Esc / F10 | Liberar mouse / fechar |
+
+O terminal exibe uma linha de diagnóstico aproximadamente a cada segundo, com **batches/draw calls, número de instâncias, triângulos e custo CPU** do renderizador. A grade conta como um draw call separado.
+
+## Compilar e testar sem gráficos
+
+Se faltar GPU, GLFW ou bibliotecas de desenvolvimento OpenGL:
 
 ```powershell
-cmake -S . -B build-tests -DORIGINXR_BUILD_GRAPHICS=OFF -DORIGINXR_BUILD_TESTS=ON
+cmake -S . -B build-tests -G Ninja -DORIGINXR_BUILD_GRAPHICS=OFF -DORIGINXR_BUILD_TESTS=ON
 cmake --build build-tests --parallel
 ctest --test-dir build-tests --output-on-failure
 ```
 
-## Controles da sandbox
+Esses testes exercitam cálculo vetorial, matriz de projeção, cenas v1/v2, OBJ, PPM, cache de recursos, entrada e transformação XR. Não validam o framebuffer ou hardware.
 
-| Tecla | Ação |
-|---|---|
-| `W A S D` | Andar no plano horizontal |
-| `Mouse` | Girar a câmera |
-| `Q / E` | Descer / subir |
-| `Shift esquerdo` | Acelerar |
-| `F1` | Alternar mono / estéreo lado a lado |
-| `F2` | Alternar wireframe |
-| `F5` | Recarregar cena do arquivo |
-| `F6` | Salvar cena no arquivo |
-| `F7` | Criar um cubo à frente da câmera |
-| `F8` | Remover a última entidade |
-| `P` | Pausar/retomar atualização de cena |
-| `R` | Redefinir câmera |
-| `Esc` | Capturar/liberar o mouse |
-| `F10` | Fechar aplicação |
+## API básica — adicionando um objeto texturizado
 
-## Adicionando uma entidade via C++
-
-O trecho abaixo pode ser adicionado em `apps/sandbox.cpp` **depois de criar `engine` e antes de `engine.run()`**. Atenção: a cena de disco é carregada durante `run()` e substitui as entidades criadas antes; para adicionar dinamicamente ao iniciar, use o callback e uma flag local:
+Use `engine.onUpdate` em `apps/sandbox.cpp`, **depois de criar `engine`** e antes de `engine.run()`. Como `Engine::run()` carrega uma cena do disco, entidades criadas antes de `run()` seriam substituídas:
 
 ```cpp
-bool created = false;
-engine.onUpdate([created](originxr::Scene& scene, float dt) mutable {
-    if (!created) {
-        auto& box = scene.createEntity("Minha entidade");
-        box.transform.position = {0.0f, 1.0f, -4.0f};
-        box.transform.scale = {0.5f, 0.5f, 0.5f};
-        box.mesh.color = {0.95f, 0.2f, 0.35f};
-        box.spin.degreesPerSecond = {0.f, 45.f, 0.f};
-        created = true;
-    }
+bool added = false;
+engine.onUpdate([added](originxr::Scene& scene, float dt) mutable {
+    (void)dt;
+    if (added) return;
+    auto& e = scene.createEntity("Meu objeto");
+    e.transform.position = {0.f, 1.f, -3.f};
+    e.mesh.asset = "../meshes/pyramid.obj";
+    e.material.tint = {1.f, 1.f, 1.f};
+    e.material.texture = "../textures/checker.ppm";
+    added = true;
 });
 ```
 
-No exemplo fornecido, `sandbox.cpp` já demonstra `onUpdate()` animando o movimento vertical do satélite.
+`e.mesh.asset` aceita `builtin:cube`, `builtin:plane` ou um caminho para OBJ. `e.material.texture` aceita um caminho para PPM ou string vazia. Caminhos relativos são resolvidos relativamente à **pasta da cena** aberta. OBJ suporta faces `f`, posições `v`, normais `vn`, UV `vt`, índices negativos e triangulação de polígonos simples; não interpreta automaticamente `.mtl` nem materiais PBR. Se não houver normais nos vértices, calcula uma normal plana por triângulo. Para modelos com polígonos côncavos, triangule antes em um editor de modelos.
 
-## Editando cenas sem recompilar
+Também é possível registrar em memória um recurso `MeshData` ou `ImageData` com ID único via `engine.assets().registerMesh(...)` / `registerImage(...)`. Registre antes de `engine.run()`; recursos registrados são imutáveis para preservar a consistência do cache GPU. Cenas não armazenam os dados binários, apenas IDs/caminhos.
 
-Abra `build/scenes/demo.oxscene` após compilar. Cada linha `entity` contém:
+## Arquivos `.oxscene` v2
+
+Uma entidade v2 é representada por:
 
 ```text
-entity "Nome" posX posY posZ rotX rotY rotZ scaleX scaleY scaleZ red green blue spinX spinY spinZ visible
+originxr_scene 2
+entity "Meu objeto" 0 1 -3 0 0 0 1 1 1 1 1 1 0 30 0 1 "../meshes/pyramid.obj" "../textures/checker.ppm" 0
 ```
 
-- Posição/escala em **metros** e rotação em **graus**.
-- `red green blue`: componentes RGB entre 0 e 1.
-- `spinX/Y/Z`: graus por segundo.
-- `visible`: `1` para renderizar, `0` para ocultar.
-- `F5` recarrega sem precisar reiniciar.
-- `F6` sobrescreve a cena carregada com o estado atual.
+Campos: nome, posição XYZ, rotação XYZ em graus, escala XYZ, cor RGB, velocidade angular XYZ em graus/s, visibilidade, ID da malha, ID da textura e flag `unlit` (0/1). As cenas **v1 continuam sendo lidas**, assumindo cubo e cor convertida para `MaterialComponent::tint`. Ao salvar, o arquivo usa **v2**.
 
-Também é possível abrir um arquivo de cena próprio:
+> Migração de código: a cor da v0.1 era `e.mesh.color`; na v0.2 é `e.material.tint`. A visibilidade continua sendo `e.mesh.visible`.
 
-```powershell
-.\build\originxr_sandbox.exe "C:\Projetos\minha-cena.oxscene" --stereo
-```
+## Preparação para OpenXR
 
-## Limitações e próximos passos
+O arquivo `XRMath.hpp` define `XRPose` e `XRFov`, juntamente com `makeXRView` e `makeXRProjection`. O `Renderer::renderViews` aceita matrizes de view/projection e viewports, ao invés de criar um IPD fixo. No futuro, o backend OpenXR substituirá as projeções de desktop por poses e FOV obtidos do runtime e renderizará em swapchains próprias. **A criação de sessões/swapchains e o uso de headsets ainda não existem nesta versão.**
 
-O OpenGL 3.3 é usado somente para desktop. Não há importação de modelos, animação esquelética, física, áudio, editor visual, gerenciamento completo de recursos ou Android. As entidades são armazenadas num `std::vector` simples: adequado para começar, mas ainda não é um ECS orientado a dados completo.
+## Próximos passos
 
-Para **RV real**, será necessário usar OpenXR para instância, sistema, sessão, ação dos controladores, projeções fornecidas pelo dispositivo, swapchains e submissão dos frames. Para **RA**, também será necessário lidar com transparência/passthrough ou rastreamento de câmera/marcadores, conforme o hardware. Ver `docs/roadmap.md`.
+1. Completar importação glTF 2.0 (accessors, índices, materiais, múltiplas primitivas), PNG/JPEG e gerenciamento/descarga de assets.
+2. Extrair a interface de renderização de framebuffer, para permitir OpenXR com swapchains e render targets específicos por olho.
+3. Introduzir inspeção de cenas, editor ImGui e picking.
+4. Integrar OpenXR runtime + sessão + frame loop + head tracking + inputs de controladores; validar em headset real.
+5. Escolher backend RA conforme a plataforma, incluindo câmera/passthrough e permissões apropriadas.
 
-### Referências
-
-- GLFW: https://www.glfw.org/docs/latest/
-- OpenXR: https://www.khronos.org/openxr/
-- OpenXR Registry: https://registry.khronos.org/OpenXR/
-- OpenGL: https://www.khronos.org/opengl/
+Fontes técnicas: [GLFW](https://www.glfw.org/docs/latest/), [OpenXR Registry](https://registry.khronos.org/OpenXR/), [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).
 
 ## Licença
 
-MIT — ver [LICENSE](LICENSE).
+MIT — consultar `LICENSE`.

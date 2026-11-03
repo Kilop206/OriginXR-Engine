@@ -16,8 +16,14 @@ struct Transform {
 };
 
 struct MeshComponent {
-    Vec3 color{0.4f,0.7f,1.0f};
+    std::string asset{"builtin:cube"};  // ID in AssetManager or path to OBJ
     bool visible{true};
+};
+
+struct MaterialComponent {
+    Vec3 tint{0.4f,0.7f,1.0f};
+    std::string texture;  // empty or path to PPM image
+    bool unlit{false};
 };
 
 struct SpinComponent {
@@ -29,6 +35,7 @@ struct Entity {
     std::string name;
     Transform transform;
     MeshComponent mesh;
+    MaterialComponent material;
     SpinComponent spin;
 };
 

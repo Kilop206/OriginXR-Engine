@@ -12,7 +12,7 @@ int main(int argc,char** argv) {
         if(std::string(argv[i])=="--stereo") cfg.stereoPreview=true;
         else cfg.scenePath=argv[i];
     }
-    std::cout<<"OriginXR 0.1 - desktop renderer / stereo preview (not headset XR)\n";
+    std::cout<<"OriginXR 0.2 - desktop renderer / stereo preview (not headset XR)\n";
     originxr::Engine engine(cfg);
     // Example of a user-defined system, completely outside the engine core.
     engine.onUpdate([elapsed=0.0f](originxr::Scene& scene,float dt) mutable {

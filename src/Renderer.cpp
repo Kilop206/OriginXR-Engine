@@ -1,19 +1,29 @@
 #include "originxr/Renderer.hpp"
 #include <GLFW/glfw3.h>
-#include <array>
+#include <chrono>
+#include <cstdint>
+#include <memory>
 #include <cstddef>
 #include <iostream>
+#include <map>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <tuple>
+#include <unordered_map>
 #include <vector>
 
-// Small OpenGL 3.3 function loader, using GLFW's platform-independent resolver.
-// Kept local to this renderer so the core remains completely graphics-independent.
 #ifndef GL_ARRAY_BUFFER
 #define GL_ARRAY_BUFFER 0x8892
 #endif
+#ifndef GL_ELEMENT_ARRAY_BUFFER
+#define GL_ELEMENT_ARRAY_BUFFER 0x8893
+#endif
 #ifndef GL_STATIC_DRAW
 #define GL_STATIC_DRAW 0x88E4
+#endif
+#ifndef GL_DYNAMIC_DRAW
+#define GL_DYNAMIC_DRAW 0x88E8
 #endif
 #ifndef GL_VERTEX_SHADER
 #define GL_VERTEX_SHADER 0x8B31
@@ -30,43 +40,76 @@
 #ifndef GL_INFO_LOG_LENGTH
 #define GL_INFO_LOG_LENGTH 0x8B84
 #endif
+#ifndef GL_UNSIGNED_INT
+#define GL_UNSIGNED_INT 0x1405
+#endif
+#ifndef GL_TEXTURE0
+#define GL_TEXTURE0 0x84C0
+#endif
+#ifndef GL_TEXTURE_2D
+#define GL_TEXTURE_2D 0x0DE1
+#endif
+#ifndef GL_RGB
+#define GL_RGB 0x1907
+#endif
+#ifndef GL_UNSIGNED_BYTE
+#define GL_UNSIGNED_BYTE 0x1401
+#endif
+#ifndef GL_TEXTURE_MIN_FILTER
+#define GL_TEXTURE_MIN_FILTER 0x2801
+#endif
+#ifndef GL_TEXTURE_MAG_FILTER
+#define GL_TEXTURE_MAG_FILTER 0x2800
+#endif
+#ifndef GL_LINEAR
+#define GL_LINEAR 0x2601
+#endif
+#ifndef GL_UNPACK_ALIGNMENT
+#define GL_UNPACK_ALIGNMENT 0x0CF5
+#endif
 
 namespace originxr {
 namespace {
-// On Windows APIENTRY is __stdcall, and on POSIX it is empty.
-using GenVertexArraysFn = void (APIENTRY*)(GLsizei,GLuint*);
-using BindVertexArrayFn = void (APIENTRY*)(GLuint);
-using DeleteVertexArraysFn = void (APIENTRY*)(GLsizei,const GLuint*);
-using GenBuffersFn = void (APIENTRY*)(GLsizei,GLuint*);
-using BindBufferFn = void (APIENTRY*)(GLenum,GLuint);
-using BufferDataFn = void (APIENTRY*)(GLenum,std::ptrdiff_t,const void*,GLenum);
-using DeleteBuffersFn = void (APIENTRY*)(GLsizei,const GLuint*);
-using VertexAttribPointerFn = void (APIENTRY*)(GLuint,GLint,GLenum,GLboolean,GLsizei,const void*);
-using EnableVertexAttribArrayFn = void (APIENTRY*)(GLuint);
-using CreateShaderFn = GLuint (APIENTRY*)(GLenum);
-using ShaderSourceFn = void (APIENTRY*)(GLuint,GLsizei,const char* const*,const GLint*);
-using CompileShaderFn = void (APIENTRY*)(GLuint);
-using GetShaderivFn = void (APIENTRY*)(GLuint,GLenum,GLint*);
-using GetShaderInfoLogFn = void (APIENTRY*)(GLuint,GLsizei,GLsizei*,char*);
-using DeleteShaderFn = void (APIENTRY*)(GLuint);
-using CreateProgramFn = GLuint (APIENTRY*)();
-using AttachShaderFn = void (APIENTRY*)(GLuint,GLuint);
-using LinkProgramFn = void (APIENTRY*)(GLuint);
-using GetProgramivFn = void (APIENTRY*)(GLuint,GLenum,GLint*);
-using GetProgramInfoLogFn = void (APIENTRY*)(GLuint,GLsizei,GLsizei*,char*);
-using DeleteProgramFn = void (APIENTRY*)(GLuint);
-using UseProgramFn = void (APIENTRY*)(GLuint);
-using GetUniformLocationFn = GLint (APIENTRY*)(GLuint,const char*);
-using UniformMatrix4fvFn = void (APIENTRY*)(GLint,GLsizei,GLboolean,const GLfloat*);
-using Uniform3fFn = void (APIENTRY*)(GLint,GLfloat,GLfloat,GLfloat);
-using Uniform1iFn = void (APIENTRY*)(GLint,GLint);
-
+using GenVertexArraysFn=void(APIENTRY*)(GLsizei,GLuint*);
+using BindVertexArrayFn=void(APIENTRY*)(GLuint);
+using DeleteVertexArraysFn=void(APIENTRY*)(GLsizei,const GLuint*);
+using GenBuffersFn=void(APIENTRY*)(GLsizei,GLuint*);
+using BindBufferFn=void(APIENTRY*)(GLenum,GLuint);
+using BufferDataFn=void(APIENTRY*)(GLenum,std::ptrdiff_t,const void*,GLenum);
+using DeleteBuffersFn=void(APIENTRY*)(GLsizei,const GLuint*);
+using VertexAttribPointerFn=void(APIENTRY*)(GLuint,GLint,GLenum,GLboolean,GLsizei,const void*);
+using EnableVertexAttribArrayFn=void(APIENTRY*)(GLuint);
+using VertexAttribDivisorFn=void(APIENTRY*)(GLuint,GLuint);
+using DrawElementsInstancedFn=void(APIENTRY*)(GLenum,GLsizei,GLenum,const void*,GLsizei);
+using CreateShaderFn=GLuint(APIENTRY*)(GLenum);
+using ShaderSourceFn=void(APIENTRY*)(GLuint,GLsizei,const char* const*,const GLint*);
+using CompileShaderFn=void(APIENTRY*)(GLuint);
+using GetShaderivFn=void(APIENTRY*)(GLuint,GLenum,GLint*);
+using GetShaderInfoLogFn=void(APIENTRY*)(GLuint,GLsizei,GLsizei*,char*);
+using DeleteShaderFn=void(APIENTRY*)(GLuint);
+using CreateProgramFn=GLuint(APIENTRY*)();
+using AttachShaderFn=void(APIENTRY*)(GLuint,GLuint);
+using LinkProgramFn=void(APIENTRY*)(GLuint);
+using GetProgramivFn=void(APIENTRY*)(GLuint,GLenum,GLint*);
+using GetProgramInfoLogFn=void(APIENTRY*)(GLuint,GLsizei,GLsizei*,char*);
+using DeleteProgramFn=void(APIENTRY*)(GLuint);
+using UseProgramFn=void(APIENTRY*)(GLuint);
+using GetUniformLocationFn=GLint(APIENTRY*)(GLuint,const char*);
+using UniformMatrix4fvFn=void(APIENTRY*)(GLint,GLsizei,GLboolean,const GLfloat*);
+using Uniform3fFn=void(APIENTRY*)(GLint,GLfloat,GLfloat,GLfloat);
+using Uniform1iFn=void(APIENTRY*)(GLint,GLint);
+using ActiveTextureFn=void(APIENTRY*)(GLenum);
+using GenTexturesFn=void(APIENTRY*)(GLsizei,GLuint*);
+using DeleteTexturesFn=void(APIENTRY*)(GLsizei,const GLuint*);
+using BindTextureFn=void(APIENTRY*)(GLenum,GLuint);
+using TexImage2DFn=void(APIENTRY*)(GLenum,GLint,GLint,GLsizei,GLsizei,GLint,GLenum,GLenum,const void*);
+using TexParameteriFn=void(APIENTRY*)(GLenum,GLenum,GLint);
+using PixelStoreiFn=void(APIENTRY*)(GLenum,GLint);
 template<typename T> T load(const char* name) {
-    auto address=glfwGetProcAddress(name);
-    if(!address) throw std::runtime_error(std::string("Missing OpenGL function: ")+name);
-    return reinterpret_cast<T>(address);
+    auto proc=glfwGetProcAddress(name);
+    if(!proc)throw std::runtime_error(std::string("Missing OpenGL function: ")+name);
+    return reinterpret_cast<T>(proc);
 }
-
 struct Api {
     GenVertexArraysFn genVAO=load<GenVertexArraysFn>("glGenVertexArrays");
     BindVertexArrayFn bindVAO=load<BindVertexArrayFn>("glBindVertexArray");
@@ -77,6 +120,8 @@ struct Api {
     DeleteBuffersFn deleteBuffers=load<DeleteBuffersFn>("glDeleteBuffers");
     VertexAttribPointerFn attribPointer=load<VertexAttribPointerFn>("glVertexAttribPointer");
     EnableVertexAttribArrayFn enableAttrib=load<EnableVertexAttribArrayFn>("glEnableVertexAttribArray");
+    VertexAttribDivisorFn attribDivisor=load<VertexAttribDivisorFn>("glVertexAttribDivisor");
+    DrawElementsInstancedFn drawInstanced=load<DrawElementsInstancedFn>("glDrawElementsInstanced");
     CreateShaderFn createShader=load<CreateShaderFn>("glCreateShader");
     ShaderSourceFn shaderSource=load<ShaderSourceFn>("glShaderSource");
     CompileShaderFn compileShader=load<CompileShaderFn>("glCompileShader");
@@ -94,177 +139,254 @@ struct Api {
     UniformMatrix4fvFn uniformMat4=load<UniformMatrix4fvFn>("glUniformMatrix4fv");
     Uniform3fFn uniform3f=load<Uniform3fFn>("glUniform3f");
     Uniform1iFn uniform1i=load<Uniform1iFn>("glUniform1i");
+    ActiveTextureFn activeTexture=load<ActiveTextureFn>("glActiveTexture");
+    GenTexturesFn genTextures=load<GenTexturesFn>("glGenTextures");
+    DeleteTexturesFn deleteTextures=load<DeleteTexturesFn>("glDeleteTextures");
+    BindTextureFn bindTexture=load<BindTextureFn>("glBindTexture");
+    TexImage2DFn texImage2D=load<TexImage2DFn>("glTexImage2D");
+    TexParameteriFn texParameteri=load<TexParameteriFn>("glTexParameteri");
+    PixelStoreiFn pixelStorei=load<PixelStoreiFn>("glPixelStorei");
 };
-
-const char* vertexShader=R"GLSL(#version 330 core
-layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec3 aNormal;
+const char* vertexSource=R"GLSL(#version 330 core
+layout(location=0) in vec3 aPosition;
+layout(location=1) in vec3 aNormal;
+layout(location=2) in vec2 aUV;
+layout(location=3) in vec4 aModel0;
+layout(location=4) in vec4 aModel1;
+layout(location=5) in vec4 aModel2;
+layout(location=6) in vec4 aModel3;
 uniform mat4 uViewProjection;
 uniform mat4 uModel;
+uniform int uInstanced;
 out vec3 vNormal;
+out vec2 vUV;
 void main() {
-    gl_Position = uViewProjection * uModel * vec4(aPosition, 1.0);
-    vNormal = mat3(uModel) * aNormal;
+    mat4 model=(uInstanced==1) ? mat4(aModel0,aModel1,aModel2,aModel3) : uModel;
+    gl_Position=uViewProjection*model*vec4(aPosition,1.0);
+    vNormal=mat3(transpose(inverse(model)))*aNormal;
+    vUV=aUV;
 }
 )GLSL";
-const char* fragmentShader=R"GLSL(#version 330 core
+const char* fragmentSource=R"GLSL(#version 330 core
 in vec3 vNormal;
-uniform vec3 uColor;
+in vec2 vUV;
+uniform vec3 uTint;
+uniform sampler2D uSampler;
+uniform int uUseTexture;
 uniform int uUnlit;
-out vec4 FragColor;
+out vec4 fragColor;
 void main() {
-    float diffuse = max(dot(normalize(vNormal), normalize(vec3(0.3, 0.85, 0.55))), 0.0);
-    float brightness = (uUnlit == 1) ? 1.0 : (0.35 + 0.65 * diffuse);
-    FragColor = vec4(uColor * brightness, 1.0);
+    vec3 color=uTint;
+    if(uUseTexture==1)color*=texture(uSampler,vUV).rgb;
+    float diffuse=max(dot(normalize(vNormal),normalize(vec3(.3,.85,.55))),0.0);
+    float light=(uUnlit==1) ? 1.0 : 0.35+0.65*diffuse;
+    fragColor=vec4(color*light,1.0);
 }
 )GLSL";
-
-// Six faces x two triangles, with position and normal per vertex.
-std::vector<float> cubeVertices() {
-    std::vector<float> v;
-    v.reserve(36*6);
-    constexpr std::array<std::array<float,3>,8> p{{
-        {{-.5f,-.5f,-.5f}}, {{.5f,-.5f,-.5f}}, {{.5f,.5f,-.5f}}, {{-.5f,.5f,-.5f}},
-        {{-.5f,-.5f,.5f}}, {{.5f,-.5f,.5f}}, {{.5f,.5f,.5f}}, {{-.5f,.5f,.5f}}
-    }};
-    struct Face { std::array<int,4> indices; Vec3 normal; };
-    constexpr std::array<Face,6> faces{{
-        {{{4,5,6,7}},{0,0,1}}, {{{1,0,3,2}},{0,0,-1}},
-        {{{0,4,7,3}},{-1,0,0}}, {{{5,1,2,6}},{1,0,0}},
-        {{{7,6,2,3}},{0,1,0}}, {{{0,1,5,4}},{0,-1,0}}
-    }};
-    for(const Face& face:faces) {
-        for(int idx:{0,1,2,0,2,3}) {
-            const auto& a=p[static_cast<std::size_t>(face.indices[static_cast<std::size_t>(idx)])];
-            v.insert(v.end(),{a[0],a[1],a[2],face.normal.x,face.normal.y,face.normal.z});
-        }
+struct BatchKey {
+    std::string mesh,texture;
+    Vec3 tint;
+    bool unlit;
+    bool operator<(const BatchKey& r) const {
+        return std::tie(mesh,texture,tint.x,tint.y,tint.z,unlit)<
+               std::tie(r.mesh,r.texture,r.tint.x,r.tint.y,r.tint.z,r.unlit);
     }
-    return v;
-}
-std::vector<float> gridVertices() {
-    std::vector<float> v;
-    v.reserve(25*4*6);
-    auto vertex=[&](float x,float z) {v.insert(v.end(),{x,0.f,z,0.f,1.f,0.f});};
-    for(int i=-12;i<=12;++i) {
-        vertex(static_cast<float>(i),-12.f);vertex(static_cast<float>(i),12.f);
-        vertex(-12.f,static_cast<float>(i));vertex(12.f,static_cast<float>(i));
-    }
-    return v;
-}
+};
+struct GpuMesh {GLuint vao{0},vbo{0},ebo{0},instances{0};GLsizei indexCount{0};};
 } // namespace
-
 struct Renderer::Impl {
     std::unique_ptr<Api> gl;
-    GLuint shader{0}, cubeVAO{0}, cubeVBO{0}, gridVAO{0}, gridVBO{0};
-    GLint uViewProjection{-1},uModel{-1},uColor{-1},uUnlit{-1};
+    GLuint shader{0},gridVAO{0},gridVBO{0};
     GLsizei gridVertexCount{0};
+    GLint uVP{-1},uModel{-1},uTint{-1},uUnlit{-1},uInstanced{-1},uUseTexture{-1},uSampler{-1};
+    std::unordered_map<std::string,GpuMesh> gpuMeshes;
+    std::unordered_map<std::string,GLuint> gpuTextures;
+    std::set<std::string> missingAssets;
     bool initialized{false};
-
     GLuint compile(GLenum kind,const char* source) {
-        const GLuint s=gl->createShader(kind);
-        gl->shaderSource(s,1,&source,nullptr);
-        gl->compileShader(s);
-        GLint okay=0;gl->getShader(s,GL_COMPILE_STATUS,&okay);
-        if(!okay) {
-            GLint length=0;gl->getShader(s,GL_INFO_LOG_LENGTH,&length);
+        GLuint id=gl->createShader(kind);
+        gl->shaderSource(id,1,&source,nullptr);gl->compileShader(id);
+        GLint success=0;gl->getShader(id,GL_COMPILE_STATUS,&success);
+        if(!success) {
+            GLint length=0;gl->getShader(id,GL_INFO_LOG_LENGTH,&length);
             std::string msg(static_cast<std::size_t>(length>0?length:1),'\0');
-            gl->shaderLog(s,static_cast<GLsizei>(msg.size()),nullptr,msg.data());
-            gl->deleteShader(s);throw std::runtime_error("Shader compilation: "+msg);
+            gl->shaderLog(id,static_cast<GLsizei>(msg.size()),nullptr,msg.data());
+            gl->deleteShader(id);throw std::runtime_error("GLSL compile: "+msg);
         }
-        return s;
-    }
-    void upload(const std::vector<float>& vertices,GLuint& vao,GLuint& buffer) {
-        gl->genVAO(1,&vao);gl->genBuffers(1,&buffer);
-        gl->bindVAO(vao);gl->bindBuffer(GL_ARRAY_BUFFER,buffer);
-        gl->bufferData(GL_ARRAY_BUFFER,static_cast<std::ptrdiff_t>(vertices.size()*sizeof(float)),vertices.data(),GL_STATIC_DRAW);
-        gl->attribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
-        gl->enableAttrib(0);
-        gl->attribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<const void*>(3*sizeof(float)));
-        gl->enableAttrib(1);
-        gl->bindVAO(0);
+        return id;
     }
     void init() {
         gl=std::make_unique<Api>();
-        const GLuint vs=compile(GL_VERTEX_SHADER,vertexShader);
+        GLuint vs=compile(GL_VERTEX_SHADER,vertexSource);
         GLuint fs=0;
-        try {fs=compile(GL_FRAGMENT_SHADER,fragmentShader);} catch(...) {gl->deleteShader(vs);throw;}
-        shader=gl->createProgram();
-        gl->attachShader(shader,vs);gl->attachShader(shader,fs);
-        gl->linkProgram(shader);
-        gl->deleteShader(vs);gl->deleteShader(fs);
-        GLint okay=0;gl->getProgram(shader,GL_LINK_STATUS,&okay);
-        if(!okay) {
+        try {fs=compile(GL_FRAGMENT_SHADER,fragmentSource);}catch(...){gl->deleteShader(vs);throw;}
+        shader=gl->createProgram();gl->attachShader(shader,vs);gl->attachShader(shader,fs);
+        gl->linkProgram(shader);gl->deleteShader(vs);gl->deleteShader(fs);
+        GLint success=0;gl->getProgram(shader,GL_LINK_STATUS,&success);
+        if(!success) {
             GLint length=0;gl->getProgram(shader,GL_INFO_LOG_LENGTH,&length);
             std::string msg(static_cast<std::size_t>(length>0?length:1),'\0');
             gl->programLog(shader,static_cast<GLsizei>(msg.size()),nullptr,msg.data());
-            throw std::runtime_error("Shader link: "+msg);
+            throw std::runtime_error("GLSL link: "+msg);
         }
-        uViewProjection=gl->uniformLocation(shader,"uViewProjection");
+        uVP=gl->uniformLocation(shader,"uViewProjection");
         uModel=gl->uniformLocation(shader,"uModel");
-        uColor=gl->uniformLocation(shader,"uColor");
+        uTint=gl->uniformLocation(shader,"uTint");
         uUnlit=gl->uniformLocation(shader,"uUnlit");
-        upload(cubeVertices(),cubeVAO,cubeVBO);
-        auto grid=gridVertices();gridVertexCount=static_cast<GLsizei>(grid.size()/6);
-        upload(grid,gridVAO,gridVBO);
-        glEnable(GL_DEPTH_TEST);
-        glEnable(GL_SCISSOR_TEST);
-        glClearColor(0.035f,0.055f,0.09f,1.f);
+        uInstanced=gl->uniformLocation(shader,"uInstanced");
+        uUseTexture=gl->uniformLocation(shader,"uUseTexture");
+        uSampler=gl->uniformLocation(shader,"uSampler");
+        gl->genVAO(1,&gridVAO);gl->genBuffers(1,&gridVBO);
+        std::vector<Vertex> grid;
+        grid.reserve(100);
+        for(int i=-12;i<=12;++i) {
+            float x=static_cast<float>(i);
+            grid.push_back({{x,0,-12},{0,1,0},0,0});grid.push_back({{x,0,12},{0,1,0},0,0});
+            grid.push_back({{-12,0,x},{0,1,0},0,0});grid.push_back({{12,0,x},{0,1,0},0,0});
+        }
+        gridVertexCount=static_cast<GLsizei>(grid.size());
+        gl->bindVAO(gridVAO);
+        gl->bindBuffer(GL_ARRAY_BUFFER,gridVBO);
+        gl->bufferData(GL_ARRAY_BUFFER,static_cast<std::ptrdiff_t>(grid.size()*sizeof(Vertex)),grid.data(),GL_STATIC_DRAW);
+        gl->attribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<const void*>(offsetof(Vertex,position)));gl->enableAttrib(0);
+        gl->attribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<const void*>(offsetof(Vertex,normal)));gl->enableAttrib(1);
+        gl->attribPointer(2,2,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<const void*>(offsetof(Vertex,u)));gl->enableAttrib(2);
+        gl->bindVAO(0);
+        glEnable(GL_DEPTH_TEST);glEnable(GL_SCISSOR_TEST);
+        glClearColor(.035f,.055f,.09f,1.f);
         initialized=true;
     }
     void destroy() {
-        if(!gl) return;
-        if(cubeVBO)gl->deleteBuffers(1,&cubeVBO);
+        if(!gl)return;
+        for(auto& item:gpuMeshes) {
+            auto& mesh=item.second;
+            if(mesh.vbo)gl->deleteBuffers(1,&mesh.vbo);
+            if(mesh.ebo)gl->deleteBuffers(1,&mesh.ebo);
+            if(mesh.instances)gl->deleteBuffers(1,&mesh.instances);
+            if(mesh.vao)gl->deleteVAO(1,&mesh.vao);
+        }
+        gpuMeshes.clear();
+        for(auto& item:gpuTextures) if(item.second)gl->deleteTextures(1,&item.second);
+        gpuTextures.clear();
         if(gridVBO)gl->deleteBuffers(1,&gridVBO);
-        if(cubeVAO)gl->deleteVAO(1,&cubeVAO);
         if(gridVAO)gl->deleteVAO(1,&gridVAO);
         if(shader)gl->deleteProgram(shader);
-        cubeVBO=gridVBO=cubeVAO=gridVAO=shader=0;
-        initialized=false;
-        gl.reset();
+        gridVBO=gridVAO=shader=0;
+        initialized=false;gl.reset();
     }
-    void drawView(const Scene& scene,const Mat4& vp,int x,int w,int h,bool wireframe) {
-        if(w<=0 || h<=0) return;
-        glViewport(x,0,w,h);glScissor(x,0,w,h);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        gl->useProgram(shader);
-        gl->uniformMat4(uViewProjection,1,GL_FALSE,vp.data());
-        const Mat4 identity=Mat4::identity();
-        gl->uniformMat4(uModel,1,GL_FALSE,identity.data());
-        gl->uniform3f(uColor,0.19f,0.31f,0.46f);
-        gl->uniform1i(uUnlit,1);
-        gl->bindVAO(gridVAO);
-        glDrawArrays(GL_LINES,0,gridVertexCount);
-        glPolygonMode(GL_FRONT_AND_BACK,wireframe?GL_LINE:GL_FILL);
-        gl->uniform1i(uUnlit,0);
-        gl->bindVAO(cubeVAO);
-        for(const Entity& e:scene.entities()) {
-            if(!e.mesh.visible) continue;
-            Mat4 model=e.transform.matrix();
-            gl->uniformMat4(uModel,1,GL_FALSE,model.data());
-            gl->uniform3f(uColor,e.mesh.color.x,e.mesh.color.y,e.mesh.color.z);
-            glDrawArrays(GL_TRIANGLES,0,36);
+    GpuMesh* getMesh(const std::string& id,AssetManager& assets) {
+        auto existing=gpuMeshes.find(id);
+        if(existing!=gpuMeshes.end())return &existing->second;
+        std::string error;
+        auto* data=assets.mesh(id,error);
+        if(!data) {if(missingAssets.insert(id).second)std::cerr<<"[OriginXR] "<<error<<'\n';return nullptr;}
+        GpuMesh gpu;
+        gpu.indexCount=static_cast<GLsizei>(data->indices.size());
+        gl->genVAO(1,&gpu.vao);gl->genBuffers(1,&gpu.vbo);
+        gl->genBuffers(1,&gpu.ebo);gl->genBuffers(1,&gpu.instances);
+        gl->bindVAO(gpu.vao);
+        gl->bindBuffer(GL_ARRAY_BUFFER,gpu.vbo);
+        gl->bufferData(GL_ARRAY_BUFFER,static_cast<std::ptrdiff_t>(data->vertices.size()*sizeof(Vertex)),data->vertices.data(),GL_STATIC_DRAW);
+        gl->bindBuffer(GL_ELEMENT_ARRAY_BUFFER,gpu.ebo);
+        gl->bufferData(GL_ELEMENT_ARRAY_BUFFER,static_cast<std::ptrdiff_t>(data->indices.size()*sizeof(std::uint32_t)),data->indices.data(),GL_STATIC_DRAW);
+        gl->attribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<const void*>(offsetof(Vertex,position)));gl->enableAttrib(0);
+        gl->attribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<const void*>(offsetof(Vertex,normal)));gl->enableAttrib(1);
+        gl->attribPointer(2,2,GL_FLOAT,GL_FALSE,sizeof(Vertex),reinterpret_cast<const void*>(offsetof(Vertex,u)));gl->enableAttrib(2);
+        gl->bindBuffer(GL_ARRAY_BUFFER,gpu.instances);
+        for(GLuint col=0;col<4;++col) {
+            gl->attribPointer(3+col,4,GL_FLOAT,GL_FALSE,sizeof(Mat4),reinterpret_cast<const void*>(sizeof(float)*4*col));
+            gl->enableAttrib(3+col);gl->attribDivisor(3+col,1);
         }
         gl->bindVAO(0);
+        return &gpuMeshes.emplace(id,gpu).first->second;
+    }
+    GLuint getTexture(const std::string& id,AssetManager& assets) {
+        if(id.empty())return 0;
+        auto existing=gpuTextures.find(id);
+        if(existing!=gpuTextures.end())return existing->second;
+        std::string error;
+        auto* image=assets.image(id,error);
+        if(!image) {if(missingAssets.insert(id).second)std::cerr<<"[OriginXR] "<<error<<'\n';return 0;}
+        GLuint tex=0;gl->genTextures(1,&tex);gl->bindTexture(GL_TEXTURE_2D,tex);
+        gl->pixelStorei(GL_UNPACK_ALIGNMENT,1);
+        gl->texParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+        gl->texParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        gl->texImage2D(GL_TEXTURE_2D,0,GL_RGB,image->width,image->height,0,GL_RGB,GL_UNSIGNED_BYTE,image->rgb.data());
+        gl->bindTexture(GL_TEXTURE_2D,0);
+        gpuTextures.emplace(id,tex);
+        return tex;
+    }
+    void draw(const Scene& scene,const RenderView& view,AssetManager& assets,bool wireframe,RenderStats& stats) {
+        if(view.width<=0 || view.height<=0)return;
+        glViewport(view.x,view.y,view.width,view.height);
+        glScissor(view.x,view.y,view.width,view.height);
+        glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+        gl->useProgram(shader);
+        gl->uniformMat4(uVP,1,GL_FALSE,view.viewProjection.data());
+        gl->uniform1i(uSampler,0);
+        gl->uniform1i(uInstanced,0);
+        gl->uniform1i(uUseTexture,0);
+        gl->uniform1i(uUnlit,1);
+        gl->uniform3f(uTint,.19f,.31f,.46f);
+        const auto identity=Mat4::identity();
+        gl->uniformMat4(uModel,1,GL_FALSE,identity.data());
+        gl->bindVAO(gridVAO);
+        glDrawArrays(GL_LINES,0,gridVertexCount);
+        ++stats.drawCalls;
+        std::map<BatchKey,std::vector<Mat4>> batches;
+        for(const auto& e:scene.entities()) {
+            if(!e.mesh.visible)continue;
+            BatchKey key{e.mesh.asset,e.material.texture,e.material.tint,e.material.unlit};
+            batches[std::move(key)].push_back(e.transform.matrix());
+        }
+        glPolygonMode(GL_FRONT_AND_BACK,wireframe?GL_LINE:GL_FILL);
+        gl->uniform1i(uInstanced,1);
+        for(const auto& batch:batches) {
+            GpuMesh* mesh=getMesh(batch.first.mesh,assets);
+            if(!mesh)continue;
+            GLuint texture=getTexture(batch.first.texture,assets);
+            gl->activeTexture(GL_TEXTURE0);
+            gl->bindTexture(GL_TEXTURE_2D,texture);
+            gl->uniform1i(uUseTexture,texture?1:0);
+            gl->uniform1i(uUnlit,batch.first.unlit?1:0);
+            gl->uniform3f(uTint,batch.first.tint.x,batch.first.tint.y,batch.first.tint.z);
+            gl->bindVAO(mesh->vao);
+            gl->bindBuffer(GL_ARRAY_BUFFER,mesh->instances);
+            gl->bufferData(GL_ARRAY_BUFFER,static_cast<std::ptrdiff_t>(batch.second.size()*sizeof(Mat4)),batch.second.data(),GL_DYNAMIC_DRAW);
+            gl->drawInstanced(GL_TRIANGLES,mesh->indexCount,GL_UNSIGNED_INT,nullptr,static_cast<GLsizei>(batch.second.size()));
+            ++stats.drawCalls;
+            stats.instances+=static_cast<unsigned>(batch.second.size());
+            stats.triangles+=static_cast<unsigned>(mesh->indexCount/3)*static_cast<unsigned>(batch.second.size());
+        }
+        gl->bindVAO(0);gl->bindTexture(GL_TEXTURE_2D,0);
         glPolygonMode(GL_FRONT_AND_BACK,GL_FILL);
     }
 };
-
-Renderer::Renderer():impl_(std::make_unique<Impl>()) {}
+Renderer::Renderer():impl_(std::make_unique<Impl>()){}
 Renderer::~Renderer()=default;
 bool Renderer::initialize(std::string& error) {
-    try {impl_->init(); error.clear();return true;}
+    try {impl_->init();error.clear();return true;}
     catch(const std::exception& e) {error=e.what();impl_->destroy();return false;}
 }
-void Renderer::shutdown() {impl_->destroy();}
-void Renderer::render(const Scene& scene,const Camera& camera,int w,int h,bool stereo,bool wireframe) {
-    if(!impl_->initialized || w<=0 || h<=0) return;
+void Renderer::shutdown(){impl_->destroy();}
+void Renderer::renderViews(const Scene& scene,const std::vector<RenderView>& views,AssetManager& assets,bool wireframe) {
+    stats_={};if(!impl_->initialized)return;
+    const auto start=std::chrono::steady_clock::now();
+    for(const auto& view:views)impl_->draw(scene,view,assets,wireframe,stats_);
+    stats_.cpuMilliseconds=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start).count();
+}
+void Renderer::render(const Scene& scene,const Camera& camera,int w,int h,AssetManager& assets,bool stereo,bool wireframe) {
+    if(w<=0||h<=0)return;
+    std::vector<RenderView> views;
     if(stereo) {
-        const int leftWidth=w/2, rightWidth=w-leftWidth;
-        const float offset=camera.interPupillaryDistance*0.5f;
-        impl_->drawView(scene,camera.projection(static_cast<float>(leftWidth)/h,-offset)*camera.view(-offset),0,leftWidth,h,wireframe);
-        impl_->drawView(scene,camera.projection(static_cast<float>(rightWidth)/h,offset)*camera.view(offset),leftWidth,rightWidth,h,wireframe);
+        const int leftWidth=w/2;
+        const int rightWidth=w-leftWidth;
+        const float ipd=camera.interPupillaryDistance*.5f;
+        views.push_back({camera.projection(static_cast<float>(leftWidth)/h,-ipd)*camera.view(-ipd),0,0,leftWidth,h});
+        views.push_back({camera.projection(static_cast<float>(rightWidth)/h,ipd)*camera.view(ipd),leftWidth,0,rightWidth,h});
     } else {
-        impl_->drawView(scene,camera.projection(static_cast<float>(w)/h)*camera.view(),0,w,h,wireframe);
+        views.push_back({camera.projection(static_cast<float>(w)/h)*camera.view(),0,0,w,h});
     }
+    renderViews(scene,views,assets,wireframe);
 }
 } // namespace originxr

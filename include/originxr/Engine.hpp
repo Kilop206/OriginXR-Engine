@@ -1,4 +1,5 @@
 #pragma once
+#include "originxr/Assets.hpp"
 #include "originxr/Camera.hpp"
 #include "originxr/Scene.hpp"
 #include <functional>
@@ -20,6 +21,7 @@ public:
     Scene& scene() {return scene_;}
     const Scene& scene() const {return scene_;}
     Camera& camera() {return camera_;}
+    AssetManager& assets() {return assets_;}
     // Register application-specific behaviour without modifying engine internals.
     void onUpdate(std::function<void(Scene&,float)> callback) {updateCallback_=std::move(callback);}
 private:
@@ -31,6 +33,7 @@ private:
     void updateTitle(GLFWwindow* window,int fps);
     EngineConfig config_;
     Scene scene_;
+    AssetManager assets_;
     Camera camera_;
     bool stereo_{false},wireframe_{false},paused_{false};
     std::function<void(Scene&,float)> updateCallback_;

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(OriginXR VERSION 0.1.0 LANGUAGES CXX)
+project(OriginXR VERSION 0.2.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,6 +13,9 @@ add_library(originxr_core STATIC
     src/Camera.cpp
     src/Scene.cpp
     src/SceneIO.cpp
+    src/Assets.cpp
+    src/XRMath.cpp
+    src/Input.cpp
 )
 add_library(OriginXR::Core ALIAS originxr_core)
 target_include_directories(originxr_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -61,12 +64,18 @@ if(ORIGINXR_BUILD_GRAPHICS)
     else()
         target_compile_options(originxr_graphics PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-    # Put the demo scene alongside the executable for predictable launches.
+    # Copy demo assets alongside sandbox; scene files reference meshes/ and textures/.
     add_custom_command(TARGET originxr_sandbox POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:originxr_sandbox>/scenes
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:originxr_sandbox>/meshes
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:originxr_sandbox>/textures
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/assets/scenes/demo.oxscene
             $<TARGET_FILE_DIR:originxr_sandbox>/scenes/demo.oxscene
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets/meshes $<TARGET_FILE_DIR:originxr_sandbox>/meshes
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/assets/textures $<TARGET_FILE_DIR:originxr_sandbox>/textures
     )
 endif()
 
@@ -76,4 +85,8 @@ if(ORIGINXR_BUILD_TESTS)
     target_link_libraries(originxr_tests PRIVATE originxr_core)
     target_compile_definitions(originxr_tests PRIVATE ORIGINXR_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
     add_test(NAME originxr_core_tests COMMAND originxr_tests)
+    add_executable(originxr_assets_tests tests/test_assets.cpp)
+    target_link_libraries(originxr_assets_tests PRIVATE originxr_core)
+    target_compile_definitions(originxr_assets_tests PRIVATE ORIGINXR_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets")
+    add_test(NAME originxr_assets_tests COMMAND originxr_assets_tests)
 endif()

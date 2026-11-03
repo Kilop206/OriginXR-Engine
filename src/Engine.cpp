@@ -1,9 +1,11 @@
 #include "originxr/Engine.hpp"
 #include "originxr/Renderer.hpp"
+#include "originxr/Input.hpp"
 #include "originxr/SceneIO.hpp"
 #include <GLFW/glfw3.h>
 #include <algorithm>
 #include <iostream>
+#include <filesystem>
 #include <sstream>
 #include <utility>
 
@@ -63,18 +65,15 @@ void Engine::handleCursor(double x,double y) {
     camera_.pitch=std::clamp(camera_.pitch-static_cast<float>(dy*0.12),-85.f,85.f);
 }
 void Engine::handleMovement(GLFWwindow* w,float dt) {
-    Vec3 front=camera_.forward();front.y=0;front=normalized(front);
-    Vec3 right=camera_.right();
-    Vec3 move{};
-    if(glfwGetKey(w,GLFW_KEY_W)==GLFW_PRESS)move+=front;
-    if(glfwGetKey(w,GLFW_KEY_S)==GLFW_PRESS)move+=front*-1.f;
-    if(glfwGetKey(w,GLFW_KEY_D)==GLFW_PRESS)move+=right;
-    if(glfwGetKey(w,GLFW_KEY_A)==GLFW_PRESS)move+=right*-1.f;
-    if(glfwGetKey(w,GLFW_KEY_E)==GLFW_PRESS)move.y+=1.f;
-    if(glfwGetKey(w,GLFW_KEY_Q)==GLFW_PRESS)move.y-=1.f;
-    const float speed=glfwGetKey(w,GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS?7.f:3.f;
-    camera_.position+=normalized(move)*(speed*dt);
-    camera_.position.y=std::max(camera_.position.y,0.15f);
+    InputState input;
+    input.set(InputAction::Forward,glfwGetKey(w,GLFW_KEY_W)==GLFW_PRESS);
+    input.set(InputAction::Backward,glfwGetKey(w,GLFW_KEY_S)==GLFW_PRESS);
+    input.set(InputAction::Right,glfwGetKey(w,GLFW_KEY_D)==GLFW_PRESS);
+    input.set(InputAction::Left,glfwGetKey(w,GLFW_KEY_A)==GLFW_PRESS);
+    input.set(InputAction::Up,glfwGetKey(w,GLFW_KEY_E)==GLFW_PRESS);
+    input.set(InputAction::Down,glfwGetKey(w,GLFW_KEY_Q)==GLFW_PRESS);
+    input.set(InputAction::Sprint,glfwGetKey(w,GLFW_KEY_LEFT_SHIFT)==GLFW_PRESS);
+    moveFreeCamera(camera_,input,dt);
 }
 void Engine::updateTitle(GLFWwindow* w,int fps) {
     std::ostringstream title;
@@ -103,6 +102,7 @@ int Engine::run() {
         renderer.shutdown();glfwDestroyWindow(w);glfwTerminate();return 3;
     }
     if(!config_.scenePath.empty()) {
+        assets_.setRoot(std::filesystem::path(config_.scenePath).parent_path().string());
         if(!loadScene(config_.scenePath,scene_,error))
             std::cerr<<"Scene not loaded (using existing scene): "<<error<<'\n';
     }
@@ -114,6 +114,7 @@ int Engine::run() {
              <<"F1 stereo | F2 wireframe | F5 load | F6 save | F7 add cube | F8 delete last | P pause | F10 exit | Esc mouse\n";
     double last=glfwGetTime(),fpsFrom=last;
     int frameCount=0;
+    RenderStats previous{};
     while(!glfwWindowShouldClose(w)) {
         glfwPollEvents();
         const double now=glfwGetTime();
@@ -125,10 +126,12 @@ int Engine::run() {
             if(updateCallback_) updateCallback_(scene_,dt);
         }
         int fw=0,fh=0;glfwGetFramebufferSize(w,&fw,&fh);
-        if(fw>0 && fh>0) {renderer.render(scene_,camera_,fw,fh,stereo_,wireframe_);glfwSwapBuffers(w);}
+        if(fw>0 && fh>0) {renderer.render(scene_,camera_,fw,fh,assets_,stereo_,wireframe_);glfwSwapBuffers(w);}
         ++frameCount;
         if(now-fpsFrom>=1.0) {
             updateTitle(w,static_cast<int>(frameCount/(now-fpsFrom)));
+            previous=renderer.stats();
+            if(previous.drawCalls>0) std::cout<<"[render] "<<previous.drawCalls<<" batches | "<<previous.instances<<" instances | "<<previous.triangles<<" triangles | CPU "<<previous.cpuMilliseconds<<"ms\n";
             fpsFrom=now;frameCount=0;
         }
     }
