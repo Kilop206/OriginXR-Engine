@@ -337,7 +337,7 @@ struct Renderer::Impl {
         for(const auto& e:scene.entities()) {
             if(!e.mesh.visible)continue;
             BatchKey key{e.mesh.asset,e.material.texture,e.material.tint,e.material.unlit};
-            batches[std::move(key)].push_back(e.transform.matrix());
+            batches[std::move(key)].push_back(scene.worldMatrix(e.id));
         }
         glPolygonMode(GL_FRONT_AND_BACK,wireframe?GL_LINE:GL_FILL);
         gl->uniform1i(uInstanced,1);

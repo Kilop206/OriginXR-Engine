@@ -1,64 +1,34 @@
-# OriginXR roadmap — versão 0.2
+# OriginXR roadmap
 
-## Arquitetura
+## Milestone 1 — v0.1
 
-```text
-                         Sandbox / jogo C++
-                                |
-                            Engine
-               ________________|________________
-              |                                 |
-         originxr_core                   originxr_graphics
-     Scene / SceneIO(v1,v2)               OpenGL 3.3
-     Mesh, Material, Spin                  shaders + UV
-     AssetManager (CPU)             cache GPU + instancing
-     Camera / Math / XRMath           RenderView / metrics
-     InputState (agnóstico)       GLFW window / input adapter
-              |                                 |
-         testes CTest                      desktop / stereo
-```
+- Base `Scene`, `Camera`, `Engine`, `Renderer`, CMake, 3D desktop and stereo preview.
 
-## Status do Milestone 2 — v0.2
+## Milestone 2 — v0.2
 
-Implementado:
-- `MeshData` indexed + `Vertex` com normal e UV, built-ins cubo e plano.
-- Importador Wavefront OBJ para polígonos simples; triangulação em leque.
-- Texturas PPM P3/P6; material com cor, textura e `unlit`.
-- Caches de recursos CPU e GPU, validando IDs/formatos.
-- Agrupamento de entidades por malha + material, usando `glDrawElementsInstanced` no OpenGL 3.3.
-- Métricas de draw calls, triângulos, instâncias e tempo CPU.
-- Entrada separada do GLFW (`InputState`), `RenderView` e funções de matrizes XR.
-- Formato `.oxscene 2`, mantendo leitura de `.oxscene 1`.
-- CTest headless e CI.
+- Assets CPU/GPU, `MeshComponent`, `MaterialComponent`, OBJ, PPM, GPU instancing and `RenderView`.
 
-Pendente no escopo expandido de renderização:
-- glTF 2.0 completo e materiais PBR.
-- Texturas comprimidas e PNG/JPEG, streaming e asset unloading.
-- Render targets configuráveis (necessários para swapchains OpenXR), sombras, gamma/sRGB.
-- Backends além de OpenGL e camada de input de controladores.
+## Milestone 3 — v0.3 (current)
 
-## Milestone 3 — Editor e ferramentas
+Implemented in source:
+- Dear ImGui editor, separate from sandbox.
+- Hierarchy with parent-child transforms and drag/drop reparenting; scene v3 persistence.
+- Inspector for transform, material, visibility, spin; CPU picking and translation gizmo.
+- Undo/redo snapshots, play/stop, asset/render stats; headless regression tests.
 
-- ImGui: hierarquia, seleção, inspetor e perfis.
-- Gizmos de transform, undo/redo e picking.
-- Importação glTF 2.0 por loader validado; conversor de materiais/recursos.
-- Pipeline de testes gráficos em máquinas com GPU e verificação em Windows MinGW.
+Pending:
+- Real GUI/OpenGL compilation and interaction testing on Windows/MinGW + GPU.
+- Better editor viewport through off-screen framebuffer (FBO), resize, and docking.
+- Full translate/rotate/scale gizmo (only translate is in viewport; other transforms in inspector).
+- glTF 2.0 loader, validated material mapping, native dialogs and filesystem explorer.
 
-## Milestone 4 — OpenXR / RV real
+## Milestone 4 — XR runtime integration
 
-- Descoberta de runtime OpenXR e suporte `XR_KHR_opengl_enable`.
-- `xrCreateInstance`, `xrGetSystem`, sessão, reference space, state/events.
-- Negociação de formato/quantidade de imagens de swapchain por olho; FBO por imagem.
-- Loop de `xrWaitFrame`, `xrBeginFrame`, `xrLocateViews`, `xrEndFrame`.
-- Transformação de poses/FOV para cada olho. **Nunca reutilizar** o IPD de desktop no headset.
-- OpenXR Actions: controladores, poses, interação e haptics.
-- Testes reais em runtime e headset.
+- OpenXR loader + runtime discovery, instance/session/reference spaces.
+- OpenGL swapchains and FBO render targets; frame lifecycle and tracked per-eye poses.
+- Controller action maps and interaction tests on compatible hardware.
 
-## Milestone 5 — RA
+## Milestone 5 — AR
 
-- Escolher plataforma e método (OpenCV + ArUco com webcam, ou plataforma XR com passthrough/scene-understanding).
-- Calibração de câmera, âncoras, tracking, permissões, composição e oclusão.
-
-## Limitações explicitadas
-
-O OpenXR não está integrado à v0.2. OpenGL/GLFW não fornece rastreamento espacial nem um compositor VR. A renderização estéreo lado a lado **não substitui** a submissão de camadas ao runtime. Os testes atuais são principalmente CPU/headless e a execução real de GL em GPU precisa ser validada na máquina de destino.
+- Begin with calibrated webcam and fiducial marker tracking, then platform passthrough/anchors.
+- Occlusion and environment interaction where platform allows it.

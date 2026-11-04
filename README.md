@@ -1,90 +1,37 @@
-# OriginXR Engine v0.2.0 — Milestone 2
+# OriginXR Engine v0.3 — Milestone 3: Editor Visual
 
-**Engine 3D educacional em C++17, sem Unity, Unreal ou Godot.** O Milestone 2 evolui o renderizador fixo da v0.1 para **malhas importadas, materiais, texturas, cache e instancing**, com APIs independentes do backend gráfico e primitivas matemáticas preparadas para OpenXR.
+Mini-engine 3D **C++17 / OpenGL 3.3 / GLFW / Dear ImGui**, desenvolvida sem Unity, Unreal ou Godot. A v0.3 amplia a v0.2 com um editor visual independente da sandbox. **Ainda não há suporte a headset OpenXR, passthrough RA ou glTF**.
 
-> **Estado:** este projeto não implementa uma sessão OpenXR, não rastreia headsets e ainda não produz RA/RV imersiva. A opção `--stereo` é apenas pré-visualização lado a lado numa janela. O XR real precisa de OpenXR loader, runtime, swapchains, composição e dispositivos compatíveis; ver `docs/roadmap.md`.
->
-> **Validação:** o núcleo compilou com GCC 14/C++17 e passou no CTest; o código gráfico passou por checagem sintática com Clang usando interfaces GLFW/OpenGL simuladas. A execução gráfica real precisa ser validada em uma máquina com driver OpenGL 3.3 e GLFW.
+## Como compilar no Windows (MinGW-w64)
 
-## O que mudou desde a v0.1
-
-| Recurso | v0.1 | v0.2 |
-|---|---|---|
-| Geometria | Cubo fixo | `MeshData`, cubo/plano e importador OBJ (triangulação) |
-| Texturas | Nenhuma | Texturas PPM P3/P6, shader UV e RGB |
-| Materiais | Cor no MeshComponent | `MaterialComponent` com tint, textura e unlit |
-| Recursos | VBO de cubo | `AssetManager` com cache CPU + upload/cache GPU |
-| Desenho | Cada entidade = um draw | Batching por malha/material e `glDrawElementsInstanced` |
-| Perfis | Contagem FPS | Draw calls, triângulos, instâncias e tempo CPU por frame |
-| Câmera | Desktop mono e estéreo | `RenderView` aceita projeções/visões externas |
-| Entrada | GLFW acoplado à movimentação | `InputState` e `moveFreeCamera` independentes do GLFW |
-| Cenas | `.oxscene` v1 | v2 com malha/material e leitura retrocompatível v1 |
-| XR | Simulação estéreo | Matemática de pose/FOV XR, **sem runtime XR** |
-
-O projeto continua intencionalmente pequeno e didático. **Não suporta glTF 2.0, PNG/JPEG, animação esquelética, editor visual nem backends Vulkan/Metal.** Essas funcionalidades estão listadas como futuros incrementos; não são anunciadas como implementadas.
-
-## Estrutura
-
-```text
-originxr-engine-v0.2/
-├── CMakeLists.txt
-├── include/originxr/
-│   ├── Assets.hpp       AssetManager, MeshData, ImageData
-│   ├── Input.hpp        estados de entrada independentes do dispositivo
-│   ├── RenderView.hpp   vistas externas, métricas de renderização
-│   ├── XRMath.hpp       pose, FOV e matrizes em coordenadas XR
-│   ├── Camera.hpp, Math.hpp, Scene.hpp, SceneIO.hpp
-│   └── Engine.hpp, Renderer.hpp
-├── src/                 implementação C++
-├── assets/
-│   ├── meshes/pyramid.obj
-│   ├── textures/checker.ppm
-│   └── scenes/demo.oxscene, legacy-v1.oxscene
-├── apps/sandbox.cpp
-├── tests/                testes core + assets + XR math + input
-├── docs/roadmap.md
-└── .github/workflows/ci.yml
-```
-
-## Começando no Windows / MinGW-w64
-
-Pré-requisitos: CMake 3.20+, Ninja, Git, GCC/MinGW-w64 (C++17), driver com **OpenGL 3.3 Core**. Se não houver GLFW instalado, o CMake tentará obtê-lo da tag `3.4` do repositório oficial (requer acesso à internet).
-
-Abra o PowerShell na pasta extraída e execute:
+Requisitos: CMake >= 3.20, Ninja, GCC/MinGW-w64 com suporte a C++17, Git, drivers OpenGL 3.3 e internet na primeira configuração para baixar GLFW 3.4 e Dear ImGui v1.91.9b (pinned). Execute no PowerShell dentro da pasta do projeto:
 
 ```powershell
 cmake -S . -B build -G Ninja `
   -DCMAKE_C_COMPILER=C:/mingw64/bin/gcc.exe `
-  -DCMAKE_CXX_COMPILER=C:/mingw64/bin/g++.exe
+  -DCMAKE_CXX_COMPILER=C:/mingw64/bin/g++.exe `
+  -DCMAKE_BUILD_TYPE=Release
+
 cmake --build build --parallel
+
+.\build\originxr_editor.exe
+```
+
+Para abrir um exemplo de hierarquia v3:
+
+```powershell
+.\build\originxr_editor.exe .\build\scenes\hierarchy-demo.oxscene
+```
+
+Para continuar usando a sandbox da v0.2:
+
+```powershell
 .\build\originxr_sandbox.exe
 ```
 
-Ajuste o caminho do MinGW conforme sua instalação. Para testar o modo estéreo (pré-visualização, não headset):
+Se o Ninja não estiver instalado, use um gerador disponível e configure o CMake novamente em outra pasta. Ajuste os caminhos `C:/mingw64` conforme a instalação do seu compilador. **Não misture compiladores/geradores no mesmo diretório `build`.**
 
-```powershell
-.\build\originxr_sandbox.exe --stereo
-```
-
-Na primeira execução a cena contém **16 cubos com o mesmo material**, renderizados em um batch instanciado, mais um modelo OBJ piramidal, uma plataforma com textura quadriculada e um satélite animado. Os recursos são copiados para `build/scenes`, `build/meshes` e `build/textures` na compilação.
-
-### Controles
-
-| Entrada | Comportamento |
-|---|---|
-| WASD / Mouse | Movimento / olhar |
-| Q / E / Shift | Descer / subir / acelerar |
-| F1 / F2 | Prévia estéreo / wireframe |
-| F5 / F6 | Recarregar / salvar cena |
-| F7 / F8 | Criar cubo / apagar última entidade |
-| P / R | Pausar animação / redefinir câmera |
-| Esc / F10 | Liberar mouse / fechar |
-
-O terminal exibe uma linha de diagnóstico aproximadamente a cada segundo, com **batches/draw calls, número de instâncias, triângulos e custo CPU** do renderizador. A grade conta como um draw call separado.
-
-## Compilar e testar sem gráficos
-
-Se faltar GPU, GLFW ou bibliotecas de desenvolvimento OpenGL:
+Para compilar sem interface e executar os testes (não requer download de dependências gráficas):
 
 ```powershell
 cmake -S . -B build-tests -G Ninja -DORIGINXR_BUILD_GRAPHICS=OFF -DORIGINXR_BUILD_TESTS=ON
@@ -92,57 +39,87 @@ cmake --build build-tests --parallel
 ctest --test-dir build-tests --output-on-failure
 ```
 
-Esses testes exercitam cálculo vetorial, matriz de projeção, cenas v1/v2, OBJ, PPM, cache de recursos, entrada e transformação XR. Não validam o framebuffer ou hardware.
+Para desabilitar somente o editor e manter a sandbox:
 
-## API básica — adicionando um objeto texturizado
-
-Use `engine.onUpdate` em `apps/sandbox.cpp`, **depois de criar `engine`** e antes de `engine.run()`. Como `Engine::run()` carrega uma cena do disco, entidades criadas antes de `run()` seriam substituídas:
-
-```cpp
-bool added = false;
-engine.onUpdate([added](originxr::Scene& scene, float dt) mutable {
-    (void)dt;
-    if (added) return;
-    auto& e = scene.createEntity("Meu objeto");
-    e.transform.position = {0.f, 1.f, -3.f};
-    e.mesh.asset = "../meshes/pyramid.obj";
-    e.material.tint = {1.f, 1.f, 1.f};
-    e.material.texture = "../textures/checker.ppm";
-    added = true;
-});
+```powershell
+cmake -S . -B build -DORIGINXR_BUILD_EDITOR=OFF
 ```
 
-`e.mesh.asset` aceita `builtin:cube`, `builtin:plane` ou um caminho para OBJ. `e.material.texture` aceita um caminho para PPM ou string vazia. Caminhos relativos são resolvidos relativamente à **pasta da cena** aberta. OBJ suporta faces `f`, posições `v`, normais `vn`, UV `vt`, índices negativos e triangulação de polígonos simples; não interpreta automaticamente `.mtl` nem materiais PBR. Se não houver normais nos vértices, calcula uma normal plana por triângulo. Para modelos com polígonos côncavos, triangule antes em um editor de modelos.
+## Funcionalidades do editor
 
-Também é possível registrar em memória um recurso `MeshData` ou `ImageData` com ID único via `engine.assets().registerMesh(...)` / `registerImage(...)`. Registre antes de `engine.run()`; recursos registrados são imutáveis para preservar a consistência do cache GPU. Cenas não armazenam os dados binários, apenas IDs/caminhos.
+| Painel | Funcionalidade |
+| --- | --- |
+| Hierarchy | Exibe pais/filhos, seleciona entidades, arrasta entidades para alterar o pai, botão Scene Root para desvincular |
+| Inspector | Edita nome, posição, rotação, escala, malha, visibilidade, tint, textura PPM, iluminação unlit e velocidade de rotação |
+| Viewport | Renderiza cena 3D em região reservada, seleção por ray casting e gizmo translacional XYZ desenhado via ImGui |
+| Assets / Diagnostics | Mostra estatísticas de renderização, total de assets e histórico |
+| File | Abre e salva cenas `.oxscene` v3, inclusive convertendo arquivos v1/v2 ao salvar |
+| Edit | Undo/redo de mudanças, duplicação e exclusão |
+| Play/Stop | Executa simulação local temporária e restaura cena editável ao parar |
 
-## Arquivos `.oxscene` v2
+### Atalhos e manipulação
 
-Uma entidade v2 é representada por:
+- Clique esquerdo em um objeto na **Viewport**: selecionar entidade (ray casting CPU contra caixas orientadas); o teste usa uma caixa aproximada para modelos OBJ.
+- Arraste um dos eixos coloridos (X vermelho, Y verde, Z azul): **mover** a entidade selecionada no espaço de seu pai.
+- Segure **botão direito do mouse** sobre a Viewport e use **W/A/S/D**, **Q/E** (altura), **Shift** (acelerar): navegar a câmera.
+- **Ctrl+S**: salvar cena; **Ctrl+Z / Ctrl+Y**: desfazer/refazer; **Delete**: excluir seleção (desde que um widget de texto não esteja ativo).
+- **File > Save As**: digite o caminho no popup; **File > Open scene**: informe o caminho da cena.
+- **Inspector**: o nome, os IDs de malha e os caminhos de textura são aplicados ao pressionar **Enter**; demais campos são editáveis diretamente.
+- **Hierarchy**: arraste o item para outro item para alterar o pai; solte em “Scene Root” para voltar à raiz. A transformação local é preservada no reparenting (a posição no mundo pode mudar).
+- **Play** anima `SpinComponent` temporariamente; o botão **Stop** recupera o estado anterior à simulação.
+
+## Estrutura
 
 ```text
-originxr_scene 2
-entity "Meu objeto" 0 1 -3 0 0 0 1 1 1 1 1 1 0 30 0 1 "../meshes/pyramid.obj" "../textures/checker.ppm" 0
+originxr-engine-v0.3/
+├── apps/
+│   ├── editor.cpp            # Dear ImGui UI / desktop viewport
+│   └── sandbox.cpp           # Sandbox v0.2 (mantida)
+├── include/originxr/
+│   ├── Scene.hpp             # Entity.parent, setParent, worldMatrix
+│   ├── SceneIO.hpp           # Leitura v1/v2/v3; gravação v3
+│   └── editor/EditorModel.hpp# UndoHistory e ray picking (sem ImGui)
+├── src/
+│   ├── Scene.cpp
+│   ├── SceneIO.cpp
+│   ├── Renderer.cpp           # Transformações acumuladas por hierarquia
+│   └── editor/EditorModel.cpp
+├── assets/
+│   └── scenes/
+│       ├── demo.oxscene            # Cena existente, formato v2
+│       └── hierarchy-demo.oxscene  # Exemplo de pais/filhos, formato v3
+├── tests/
+│   ├── test_core.cpp
+│   ├── test_assets.cpp
+│   └── test_editor.cpp
+└── CMakeLists.txt
 ```
 
-Campos: nome, posição XYZ, rotação XYZ em graus, escala XYZ, cor RGB, velocidade angular XYZ em graus/s, visibilidade, ID da malha, ID da textura e flag `unlit` (0/1). As cenas **v1 continuam sendo lidas**, assumindo cubo e cor convertida para `MaterialComponent::tint`. Ao salvar, o arquivo usa **v2**.
+A biblioteca `originxr_core` **não depende de ImGui nem de OpenGL**. A GUI vive em `originxr_editor`. Os testes headless cobrem parsing de cenas v1/v2/v3, reparenting, rejeição de ciclos, transformações hierárquicas, undo/redo e picking CPU.
 
-> Migração de código: a cor da v0.1 era `e.mesh.color`; na v0.2 é `e.material.tint`. A visibilidade continua sendo `e.mesh.visible`.
+## `.oxscene` versão 3
 
-## Preparação para OpenXR
+Cada linha de entidade inclui `id parent_id` antes do nome:
 
-O arquivo `XRMath.hpp` define `XRPose` e `XRFov`, juntamente com `makeXRView` e `makeXRProjection`. O `Renderer::renderViews` aceita matrizes de view/projection e viewports, ao invés de criar um IPD fixo. No futuro, o backend OpenXR substituirá as projeções de desktop por poses e FOV obtidos do runtime e renderizará em swapchains próprias. **A criação de sessões/swapchains e o uso de headsets ainda não existem nesta versão.**
+```text
+originxr_scene 3
+entity 1 0 "Parent" 0 0 -3 0 0 0 1 1 1 1 1 1 0 0 0 1 "builtin:cube" "" 0
+entity 2 1 "Child" 1 0 0 0 0 0 0.5 0.5 0.5 1 0.3 0.2 0 0 0 1 "builtin:cube" "" 0
+```
 
-## Próximos passos
+A propriedade `parent_id=0` representa uma entidade raiz. O parser valida referências de pais e ciclos. O editor lê versões v1/v2 e salva v3, preservando IDs da v3. Para proteção do original, **faça uma cópia da cena antes de salvá-la em outro formato**.
 
-1. Completar importação glTF 2.0 (accessors, índices, materiais, múltiplas primitivas), PNG/JPEG e gerenciamento/descarga de assets.
-2. Extrair a interface de renderização de framebuffer, para permitir OpenXR com swapchains e render targets específicos por olho.
-3. Introduzir inspeção de cenas, editor ImGui e picking.
-4. Integrar OpenXR runtime + sessão + frame loop + head tracking + inputs de controladores; validar em headset real.
-5. Escolher backend RA conforme a plataforma, incluindo câmera/passthrough e permissões apropriadas.
+## Limitações verificadas e pontos pendentes
 
-Fontes técnicas: [GLFW](https://www.glfw.org/docs/latest/), [OpenXR Registry](https://registry.khronos.org/OpenXR/), [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html).
+- A biblioteca core **foi compilada e passou nos testes CTest com GCC 14 no Linux**.
+- O código **GUI/OpenGL não foi compilado ou executado com GLFW/ImGui reais neste ambiente**, portanto a primeira execução gráfica precisa ser verificada no Windows.
+- O editor possui **um gizmo de translação**. Rotação e escala podem ser editadas no Inspector, mas ainda não têm manipuladores 3D completos.
+- A seleção aproximada de arquivos OBJ assume dimensões locais equivalentes a um cubo unitário; não utiliza a bounding box real da malha. Não há hierarquia de ossos.
+- Arquivos `.obj` simples e texturas `.ppm` continuam funcionando; **glTF 2.0, materiais PBR, diálogos nativos de arquivos e thumbnails** permanecem para futuras versões.
+- Não há docking nem painel de arquivos, apenas um layout fixo. O viewport renderiza no framebuffer principal (sem render target próprio).
+- Undo/redo é baseado em snapshots de `Scene`, limitado a 64 alterações; não inclui modificações feitas durante a simulação.
+- Ainda não existe integração nativa com runtime/headset OpenXR; visão estereoscópica da sandbox é apenas prévia desktop.
 
-## Licença
+## Sobre dependências
 
-MIT — consultar `LICENSE`.
+O projeto usa Dear ImGui sob licença MIT, obtido pelo `FetchContent` durante a compilação, não incluído no ZIP. GLFW também é obtido automaticamente se não estiver instalado. Veja [Dear ImGui](https://github.com/ocornut/imgui) e [GLFW](https://github.com/glfw/glfw).

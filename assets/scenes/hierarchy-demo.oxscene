@@ -1,0 +1,6 @@
+# OriginXR v3 hierarchy sample. Parent ID 1 moves both child cubes.
+originxr_scene 3
+entity 1 0 "Robot Group" 0 1.0 -4.0 0 0 0 1 1 1 0.8 0.8 0.8 0 0 0 0 "builtin:cube" "" 1
+entity 2 1 "Left Arm" -1 0.2 0 0 0 -25 0.35 1.2 0.35 0.9 0.25 0.3 0 0 0 1 "builtin:cube" "" 0
+entity 3 1 "Right Arm" 1 0.2 0 0 0 25 0.35 1.2 0.35 0.25 0.5 0.95 0 0 0 1 "builtin:cube" "" 0
+entity 4 0 "Floor" 0 0 -4 0 0 0 10 1 10 1 1 1 0 0 0 1 "builtin:plane" "../textures/checker.ppm" 1

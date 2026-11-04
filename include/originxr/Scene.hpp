@@ -32,6 +32,7 @@ struct SpinComponent {
 
 struct Entity {
     EntityId id{0};
+    EntityId parent{0}; // 0 = scene root, local transform relative to parent
     std::string name;
     Transform transform;
     MeshComponent mesh;
@@ -42,6 +43,11 @@ struct Entity {
 class Scene {
 public:
     Entity& createEntity(std::string name);
+    // Used by versioned scene persistence. Returns nullptr for invalid/duplicate IDs.
+    Entity* restoreEntity(EntityId id, std::string name);
+    bool setParent(EntityId child, EntityId parent);
+    bool validHierarchy() const;
+    Mat4 worldMatrix(EntityId id) const;
     Entity* find(EntityId id);
     const Entity* find(EntityId id) const;
     bool remove(EntityId id);
